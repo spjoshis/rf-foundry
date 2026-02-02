@@ -1,0 +1,65 @@
+# Position Sizing Configuration: Volatility-Based (ATR Method)
+# =============================================================
+# Scales position inversely with volatility using ATR (Average True Range).
+# Higher volatility → smaller position (reduce risk)
+# Lower volatility → larger position (increase exposure)
+
+position_sizer:
+  strategy: "volatility"
+
+  # Universal parameters
+  min_position: 0.10  # Minimum position size (10%)
+  max_position: 0.20  # Maximum position size (20%)
+
+  # Volatility strategy parameters
+  vol_risk_per_trade: 0.02  # Risk 2% of portfolio per trade
+  vol_atr_period: 14        # ATR(14) - standard period
+  vol_atr_multiplier: 2.0   # Stop loss at 2×ATR (common trailing stop)
+
+# Usage Example:
+# ---------------
+# from tradebox.risk import PositionSizerConfig, create_position_sizer
+#
+# config = PositionSizerConfig(strategy='volatility', vol_risk_per_trade=0.02)
+# sizer = create_position_sizer(config)
+# position = sizer.calculate(
+#     price=2500.0,          # Current stock price
+#     atr=50.0,              # ATR(14) value
+#     portfolio_value=100000.0
+# )
+
+# Formula:
+# --------
+# risk_dollars = portfolio_value × vol_risk_per_trade
+# stop_distance = atr × vol_atr_multiplier
+# shares = risk_dollars / stop_distance
+# position_fraction = (shares × price) / portfolio_value
+# # Clamped to [min_position, max_position]
+
+# Example Calculation:
+# --------------------
+# Portfolio: ₹100,000, Risk: 2% = ₹2,000
+# Stock: ₹2,500, ATR: ₹50, Stop: 2×50 = ₹100
+# Shares: 2,000 / 100 = 20 shares
+# Position value: 20 × 2,500 = ₹50,000
+# Position fraction: 50,000 / 100,000 = 0.50 → clamped to 0.20 (20%)
+
+# Hyperparameter Sensitivity:
+# ----------------------------
+# vol_risk_per_trade: [0.01, 0.02, 0.03]  # 1-3% risk
+#   - 0.01: Very conservative, small positions
+#   - 0.02: Balanced (recommended)
+#   - 0.03: Aggressive, larger positions
+#
+# vol_atr_multiplier: [1.5, 2.0, 2.5]
+#   - 1.5: Tight stop, larger position
+#   - 2.0: Standard trailing stop (recommended)
+#   - 2.5: Wide stop, smaller position
+
+# Expected Behavior:
+# ------------------
+# - High volatility stocks → smaller positions (risk control)
+# - Low volatility stocks → larger positions (max exposure)
+# - Pros: Simple, adaptive, controls dollar risk
+# - Cons: Ignores win rate, may undersize in calm markets
+# - Use case: Varying market volatility, risk-focused traders

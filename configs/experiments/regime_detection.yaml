@@ -1,0 +1,217 @@
+experiment:
+  name: exp008_regime_detection
+  description: "Baseline + ADX-based trend regime detection for improved win rate"
+  version: "1"
+  baseline: "exp006_23_12_2025"
+
+# Data Configuration
+# ------------------
+# Same stocks and splits as baseline
+data:
+  symbols:
+    - "^NSEI"
+  start_date: "2001-01-01"
+  end_date: "2021-12-31"
+  # Fixed temporal splits (no random shuffling):
+  # - Train: 2010-2018 (9 years, ~70%)
+  # - Validation: 2019-2021 (3 years, ~15%)
+  # - Test: 2022-2024 (3 years, ~15%)
+
+# Feature Configuration
+# ---------------------
+# Enhanced with regime detection features
+features:
+  version: "v2"  # Techno-fundamental pipeline with regime detection
+
+  technical:
+    # Trend indicators
+    sma_periods: [20, 50, 200]
+    ema_periods: [9, 21]
+
+    # Momentum indicators
+    rsi_period: 14
+    stochastic_period: 14
+    roc_period: 10
+
+    # Volatility indicators
+    atr_period: 14
+    bollinger_period: 20
+    bollinger_std: 2
+    rolling_std_period: 20
+
+    # Volume indicators
+    volume_ma_period: 20
+    obv: true
+
+    # NEW: Directional indicators for regime detection
+    adx_enabled: true
+    adx_period: 14
+
+  # NEW: Regime detection configuration
+  regime:
+    regime_type: "trend"              # Trend-based regime using ADX
+    trending_threshold: 25.0          # ADX > 25 = trending market
+    ranging_threshold: 20.0           # ADX < 20 = ranging market
+    use_directional_bias: true        # Use +DI/-DI for trend direction
+    di_diff_threshold: 5.0            # Min DI difference for bias
+    encode_as_onehot: false           # Single value encoding (0, 1, 2)
+    smooth_regime: false              # Disable smoothing initially
+    min_regime_duration: 5            # Min bars for regime confirmation
+
+  fundamental:
+    enabled: true
+    use_mock_data: true  # Set to false for real yfinance data
+    announcement_delay_days: 45  # Point-in-time correctness (T+45 days)
+
+    # Feature groups
+    valuation_enabled: true
+    profitability_enabled: true
+    leverage_enabled: true
+    growth_enabled: true
+
+    # Individual features
+    pe_ratio: true
+    pb_ratio: true
+    ps_ratio: true
+    roe: true
+    roa: true
+    profit_margin: true
+    operating_margin: true
+    gross_margin: true
+    debt_to_equity: true
+    current_ratio: true
+    interest_coverage: true
+    revenue_growth: true
+    eps_growth: true
+    book_value_growth: true
+    asset_growth: true
+
+# Environment Configuration
+# --------------------------
+# Same as baseline (risk_adjusted reward)
+env:
+  initial_capital: 100000.0
+  lookback_window: 35
+  max_episode_steps: 500
+  action_space: "Discrete(3)"  # {Hold, Buy, Sell}
+
+  # Cost configuration - realistic Zerodha-style
+  cost_config:
+    slippage_pct: 0.001  # 0.1% slippage
+
+  # Reward configuration - same as baseline
+  reward_config:
+    reward_type: "risk_adjusted"
+    risk_penalty: 0.0001
+    trade_penalty: 0.0005
+
+# Agent Configuration
+# -------------------
+# Same PPO hyperparameters as baseline
+agent:
+  algorithm: "PPO"
+  ppo:
+    use_cnn_extractor: true
+    extractor_type: "trading"  # TradingCNNExtractor
+
+    # CNN architecture
+    price_embed_dim: 128
+    ind_embed_dim: 64
+    port_embed_dim: 32
+    fund_embed_dim: 16
+
+    # CNN options
+    use_attention: true
+    cnn_dropout: 0.1
+
+    # PPO hyperparameters
+    learning_rate: 0.0005
+    n_steps: 512
+    batch_size: 2048
+    n_epochs: 10
+    gamma: 0.98
+    gae_lambda: 0.95
+    clip_range: 0.25
+    ent_coef: 0.001
+    vf_coef: 0.5
+    max_grad_norm: 0.5
+    network_arch: [512, 512]
+    activation_fn: "relu"
+    normalize_advantage: true
+
+# Training Configuration
+# ----------------------
+# Same training setup as baseline
+training:
+  total_timesteps: 2000000      # 2M steps
+  n_envs: 16                     # 16 parallel environments
+  eval_freq: 20000              # Evaluate every 20K steps
+  n_eval_episodes: 5            # 5 episodes per evaluation
+  checkpoint_freq: 100000       # Save checkpoint every 100K steps
+  log_interval: 10              # Log every 10 steps
+  seed: 123                     # Same seed for reproducibility
+  device: "cuda"
+  tensorboard_log: "logs/tensorboard/exp008_regime"
+  model_save_dir: "models/exp008_regime"
+  best_model_save_path: "models/exp008_regime/best"
+  verbose: 0
+
+# Experiment Metadata
+# -------------------
+metadata:
+  created_from: "exp006_23_12_2025"
+  creation_date: "2025-12-29"
+  purpose: "Add regime detection to improve win rate and avoid 'average bad strategy'"
+  baseline_performance:
+    total_return: "21.21%"
+    win_rate: "50.0%"
+    sharpe_ratio: "-0.458"
+    max_drawdown: "-12.18%"
+  regime_features_added:
+    - "ADX (trend strength)"
+    - "Plus_DI (positive directional indicator)"
+    - "Minus_DI (negative directional indicator)"
+    - "regime_state (0=range, 1=transition, 2=trending)"
+    - "regime_strength (normalized ADX)"
+    - "trend_bias (-1=down, 0=neutral, 1=up)"
+    - "regime_persistence (bars in current regime)"
+
+# Success Criteria
+# ----------------
+# Targets for this experiment
+success_criteria:
+  primary:
+    total_return: ">=20%"           # Maintain baseline performance
+    win_rate: ">=55%"               # PRIMARY IMPROVEMENT TARGET (from 50%)
+
+  secondary:
+    sharpe_ratio: ">0.0"            # Improve risk-adjusted returns
+    max_drawdown: "<15%"            # Control risk
+    profit_factor: ">1.5"           # Good profit per unit risk
+
+  regime_specific:
+    trending_win_rate: ">=60%"      # Higher win rate in trending markets
+    ranging_win_rate: ">=50%"       # Maintain performance in ranging markets
+    regime_adaptation: "Agent learns to trade more in trending, less in ranging"
+
+# Notes
+# -----
+# 1. This experiment adds ADX-based trend regime detection to baseline (exp006)
+# 2. Observation space expanded: 27 features → 34 features (+7 regime features)
+# 3. Key hypothesis: Explicit regime context helps PPO avoid "average bad strategy"
+# 4. Agent receives market state context (trending vs. ranging) to adapt behavior
+# 5. Expected behavior: Trade more aggressively in trends, reduce activity in ranges
+# 6. Success measured primarily by win rate improvement (50% → 55%+)
+# 7. Backward compatible: Set adx_enabled: false to disable regime features
+# 8. Validation available via scripts/validate_regime.py
+
+# Usage
+# -----
+# Train:
+#   python scripts/train.py --config configs/experiments/exp008_regime_detection.yaml
+#
+# Validate regime detection:
+#   python scripts/validate_regime.py
+#
+# Backtest:
+#   python scripts/backtest.py --model models/exp008_regime/best --config configs/experiments/exp008_regime_detection.yaml

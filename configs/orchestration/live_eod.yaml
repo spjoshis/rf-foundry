@@ -1,0 +1,38 @@
+# Live Trading EOD Configuration
+# TradeBox-RL Trading Orchestrator
+# ⚠️ WARNING: This configuration is for LIVE trading with real money
+# Only use after successful paper trading validation
+
+experiment:
+  name: live_eod_trading
+  description: Live trading with end-of-day strategy
+
+orchestration:
+  mode: live  # paper | live
+  schedule: "15:30"  # 3:30 PM IST (market close time)
+  timezone: "Asia/Kolkata"
+  symbols:
+    - "RELIANCE.NS"    # Start with liquid stocks
+    - "TCS.NS"
+    - "INFY.NS"
+  model_path: "models/exp004_21_percent_20251214_123456.zip"  # Validated model
+
+execution:
+  broker: kite  # Zerodha Kite Connect
+  initial_capital: 100000  # ₹1 lakh (start small)
+
+risk:
+  max_position_size_pct: 0.15        # Conservative: Max 15% per trade
+  max_stock_allocation_pct: 0.10     # Conservative: Max 10% per stock
+  max_daily_loss_pct: 0.01           # Aggressive halt: 1% daily loss
+  max_sector_concentration_pct: 0.25  # Conservative: Max 25% per sector
+  min_daily_volume: 200000           # Higher liquidity requirement
+  max_leverage: 1.0                  # No leverage
+
+monitoring:
+  metrics_db: "data/metrics_live.db"
+  alert_email: "your@email.com"  # ⚠️ Set this for live trading alerts
+
+logging:
+  level: INFO  # Keep at INFO for production
+  file: "logs/orchestrator_live_eod.log"

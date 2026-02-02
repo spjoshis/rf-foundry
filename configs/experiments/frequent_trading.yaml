@@ -1,0 +1,233 @@
+experiment:
+  name: exp007_frequent_trading
+  description: "Frequent Trading Optimization: Addresses buy-and-hold behavior with active trading reward function and optimized hyperparameters for 2-3 day holding periods"
+  version: "1"
+  baseline: "exp006_17_12_2025"
+  objective: "Increase trade frequency with max 2-3 day holding periods"
+
+# Data Configuration
+# ------------------
+# Same stocks and splits as baseline
+data:
+  symbols:
+    - "^NSEI"
+  start_date: "2001-01-01"
+  end_date: "2021-12-31"
+  # Fixed temporal splits:
+  # - Train: 2010-2018 (9 years, ~70%)
+  # - Validation: 2019-2021 (3 years, ~15%)
+  # - Test: 2022-2024 (3 years, ~15%)
+
+# Feature Configuration
+# ---------------------
+features:
+  version: "v2"  # Techno-fundamental pipeline
+
+  technical:
+    # Trend indicators
+    sma_periods: [20, 50, 200]
+    ema_periods: [9, 21]
+
+    # Momentum indicators
+    rsi_period: 14
+    stochastic_period: 14
+    roc_period: 10
+
+    # Volatility indicators
+    atr_period: 14
+    bollinger_period: 20
+    bollinger_std: 2
+    rolling_std_period: 20
+
+    # Volume indicators
+    volume_ma_period: 20
+    obv: true
+
+  fundamental:
+    enabled: true
+    use_mock_data: true
+    announcement_delay_days: 45
+
+    # Feature groups
+    valuation_enabled: true
+    profitability_enabled: true
+    leverage_enabled: true
+    growth_enabled: true
+
+    # Individual features
+    pe_ratio: true
+    pb_ratio: true
+    ps_ratio: true
+    roe: true
+    roa: true
+    profit_margin: true
+    operating_margin: true
+    gross_margin: true
+    debt_to_equity: true
+    current_ratio: true
+    interest_coverage: true
+    revenue_growth: true
+    eps_growth: true
+    book_value_growth: true
+    asset_growth: true
+
+# Environment Configuration
+# --------------------------
+# OPTIMIZED for frequent trading with max 2-3 day holding periods
+env:
+  initial_capital: 100000.0
+  lookback_window: 60
+  max_episode_steps: 500
+  action_space: "Discrete(3)"  # {Hold, Buy, Sell}
+
+  # Cost configuration - realistic Zerodha-style
+  cost_config:
+    slippage_pct: 0.001  # 0.1% slippage
+
+  # ACTIVE TRADING REWARD: Encourages frequent short-term trades
+  reward_config:
+    reward_type: "active_trading"  # NEW: Active trading reward function
+
+    # Active trading parameters - KEY CHANGES
+    max_holding_days: 3           # Maximum 3 days before penalty kicks in
+    holding_penalty: 0.002        # Penalty per day beyond max_holding_days
+    trade_completion_bonus: 0.003 # Bonus for completing buy-sell cycle
+    inactivity_penalty: 0.001     # Penalty for not trading for too long
+    inactivity_threshold: 5       # Days without trading before penalty
+
+    # Legacy parameters (not used by active_trading but kept for reference)
+    trade_penalty: 0.0            # ZERO trade penalty to encourage trading
+    drawdown_penalty: 0.0         # ZERO drawdown penalty (focus on trading frequency)
+    risk_penalty: 0.0             # No risk penalty
+
+# Agent Configuration
+# -------------------
+# OPTIMIZED hyperparameters for short-term trading
+agent:
+  algorithm: "PPO"
+  ppo:
+    use_cnn_extractor: true
+    extractor_type: "trading"
+
+    # CNN architecture (same as baseline)
+    price_embed_dim: 128
+    ind_embed_dim: 64
+    port_embed_dim: 32
+    fund_embed_dim: 16
+
+    # CNN options
+    use_attention: true
+    cnn_dropout: 0.1
+
+    # OPTIMIZED PPO hyperparameters for frequent trading
+    learning_rate: 0.0003         # Standard learning rate
+    n_steps: 2048
+    batch_size: 64
+    n_epochs: 10
+
+    # KEY CHANGE: Lower gamma for shorter-term focus
+    gamma: 0.90                   # REDUCED from 0.98 - focus on immediate rewards
+
+    gae_lambda: 0.92              # Slightly reduced for shorter-term advantage estimation
+    clip_range: 0.2               # Standard clipping
+    clip_range_vf: null
+
+    # KEY CHANGE: Higher entropy for more exploration
+    ent_coef: 0.05                # INCREASED from 0.02 - more exploration of trading actions
+
+    vf_coef: 0.5
+    max_grad_norm: 0.5
+    network_arch: [512, 512]
+    activation_fn: "relu"
+    normalize_advantage: true
+
+# Training Configuration
+# ----------------------
+# FIXED: Proper training duration (was only 2000 timesteps!)
+training:
+  total_timesteps: 750000         # INCREASED from 2000 to 750K - proper training
+  n_envs: 8                       # 8 parallel environments
+  eval_freq: 25000                # Evaluate every 25K steps
+  n_eval_episodes: 5              # 5 episodes per evaluation
+  checkpoint_freq: 100000         # Save checkpoint every 100K steps
+  log_interval: 10                # Log every 10 steps
+  seed: 456                       # Different seed for this experiment
+  device: "auto"
+  tensorboard_log: "logs/tensorboard/exp007_frequent_trading"
+  model_save_dir: "models/exp007_frequent_trading"
+  best_model_save_path: "models/exp007_frequent_trading/best"
+  verbose: 1
+
+# Experiment Metadata
+# -------------------
+metadata:
+  created_from: "exp006_17_12_2025"
+  creation_date: "2025-12-19"
+  purpose: "Fix buy-and-hold behavior, increase trading frequency"
+  problem_statement: |
+    The baseline model (exp006) only placed ONE trade during backtesting,
+    holding the position for 1722 days (buy and hold). This is caused by:
+    1. Extremely low training timesteps (2000) - insufficient learning
+    2. Trade penalty discouraging any trading actions
+    3. Drawdown penalty creating excessive risk aversion
+    4. No mechanism to penalize long holding periods
+    5. High gamma (0.98) favoring long-term holding
+
+  changes_made:
+    - "NEW: active_trading reward function with holding duration penalty"
+    - "INCREASED: training timesteps from 2000 to 750000"
+    - "REDUCED: gamma from 0.98 to 0.90 for shorter-term focus"
+    - "INCREASED: entropy coefficient from 0.02 to 0.05 for exploration"
+    - "REMOVED: trade_penalty (set to 0)"
+    - "REMOVED: drawdown_penalty (set to 0)"
+    - "ADDED: max_holding_days=3, holding_penalty=0.002"
+    - "ADDED: trade_completion_bonus=0.003"
+    - "ADDED: inactivity_penalty=0.001, inactivity_threshold=5"
+
+  baseline_performance:
+    total_trades: 1
+    avg_holding_days: 1722
+    total_return: "68.86%"
+    sharpe_ratio: "0.344"
+    max_drawdown: "-26.90%"
+    win_rate: "100%"  # Only 1 trade
+
+  expected_improvements:
+    total_trades: ">50"           # Expect many more trades
+    avg_holding_days: "<5"        # Average holding under 5 days
+    max_holding_days: "3"         # Target max 3 days per trade
+    total_return: ">0%"           # Positive return (may be lower than buy-and-hold)
+    win_rate: ">50%"              # Reasonable win rate with more trades
+
+# Success Criteria
+# ----------------
+success_criteria:
+  primary:
+    total_trades: ">=30"          # Must have at least 30 trades
+    avg_holding_days: "<=5"       # Average holding period under 5 days
+    win_rate: ">45%"              # At least 45% win rate
+
+  secondary:
+    total_return: ">0%"           # Positive total return
+    sharpe_ratio: ">0.0"          # Positive Sharpe
+    max_drawdown: "<30%"          # Controlled drawdown
+    profit_factor: ">1.0"         # More profit than loss
+
+# Notes
+# -----
+# 1. This config specifically addresses the "buy and hold forever" problem
+# 2. Uses new active_trading reward function that:
+#    - Penalizes holding positions beyond 3 days
+#    - Rewards completing buy-sell cycles
+#    - Penalizes inactivity (no trading for 5+ days)
+# 3. Lower gamma (0.90) makes agent value immediate rewards more
+# 4. Higher entropy (0.05) encourages exploration of trading actions
+# 5. CRITICAL: Training timesteps increased from 2000 to 750000
+# 6. Trade completion bonus creates positive feedback for completing trades
+# 7. Expected training time: ~30-45 minutes
+
+# Training Command:
+# python scripts/train.py --config configs/experiments/exp007_frequent_trading.yaml
+
+# Backtest Command:
+# python scripts/backtest.py --model models/exp007_frequent_trading/best --symbol RELIANCE.NS --start 2021-01-01 --end 2025-12-31

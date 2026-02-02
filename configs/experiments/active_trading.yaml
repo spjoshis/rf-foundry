@@ -1,0 +1,208 @@
+experiment:
+  name: exp007_active_trading
+  description: "Active trading experiment: Encourages frequent short-term trades with 2-3 day max holding period"
+  version: "1"
+  baseline_cycle: "exp006"
+  objective: "Increase trading frequency with 2-3 day max holding window"
+
+# Data Configuration
+# ------------------
+data:
+  symbols:
+    - "^NSEI"
+  start_date: "2001-01-01"
+  end_date: "2024-12-31"  # Extended to include 2022-2024 test period
+
+# Feature Configuration
+# ---------------------
+features:
+  version: "v2"
+
+  technical:
+    # Trend indicators
+    sma_periods: [20, 50, 200]
+    ema_periods: [9, 21]
+
+    # Momentum indicators
+    rsi_period: 14
+    stochastic_period: 14
+    roc_period: 10
+
+    # Volatility indicators
+    atr_period: 14
+    bollinger_period: 20
+    bollinger_std: 2
+    rolling_std_period: 20
+
+    # Volume indicators
+    volume_ma_period: 20
+    obv: true
+
+  fundamental:
+    enabled: true
+    use_mock_data: true
+    announcement_delay_days: 45
+
+    valuation_enabled: true
+    profitability_enabled: true
+    leverage_enabled: true
+    growth_enabled: true
+
+    pe_ratio: true
+    pb_ratio: true
+    ps_ratio: true
+    roe: true
+    roa: true
+    profit_margin: true
+    operating_margin: true
+    gross_margin: true
+    debt_to_equity: true
+    current_ratio: true
+    interest_coverage: true
+    revenue_growth: true
+    eps_growth: true
+    book_value_growth: true
+    asset_growth: true
+
+# Environment Configuration
+# --------------------------
+# KEY CHANGE: Use active_trading reward to encourage frequent short-term trades
+env:
+  initial_capital: 100000.0
+  lookback_window: 60
+  max_episode_steps: 500
+  action_space: "Discrete(3)"  # {Hold, Buy, Sell}
+
+  # Cost configuration - realistic Zerodha-style
+  cost_config:
+    slippage_pct: 0.001  # 0.1% slippage
+
+  # ACTIVE TRADING REWARD: Encourages frequent trading with short holding periods
+  reward_config:
+    reward_type: "active_trading"  # KEY CHANGE: Use active trading reward
+
+    # Holding period constraints (2-3 days max) - AGGRESSIVE SETTINGS
+    max_holding_days: 2              # Maximum days to hold before penalty (user requirement: 2-3 days)
+    holding_penalty: 0.005           # STRONG penalty per day beyond max (increased from 0.002)
+
+    # Trade incentives - AGGRESSIVE
+    trade_completion_bonus: 0.008    # HIGH bonus for completing buy-sell cycle (increased from 0.003)
+
+    # Inactivity penalties to prevent buy-and-hold - AGGRESSIVE
+    inactivity_penalty: 0.003        # STRONG penalty for not trading (increased from 0.001)
+    inactivity_threshold: 2          # Start penalty after just 2 days (reduced from 3)
+
+    # Keep low trade penalty to not discourage trading
+    trade_penalty: 0.0               # No trade penalty in active trading mode
+
+    # Risk parameters (lower to not discourage trading)
+    drawdown_penalty: 0.0            # No drawdown penalty - we want trades!
+    risk_penalty: 0.0                # No additional risk penalty
+
+# Agent Configuration
+# -------------------
+# PPO hyperparameters optimized for short-term trading
+agent:
+  algorithm: "PPO"
+  ppo:
+    use_cnn_extractor: true
+    extractor_type: "trading"
+
+    # CNN architecture
+    price_embed_dim: 128
+    ind_embed_dim: 64
+    port_embed_dim: 32
+    fund_embed_dim: 16
+
+    use_attention: true
+    cnn_dropout: 0.1
+
+    # PPO hyperparameters tuned for ACTIVE trading (frequent trades)
+    learning_rate: 0.0003           # Standard learning rate
+    n_steps: 1024                   # Smaller rollouts for faster updates
+    batch_size: 64
+    n_epochs: 10
+    gamma: 0.90                     # VERY LOW gamma for short-term focus (vs 0.98)
+    gae_lambda: 0.85                # Lower lambda for faster credit assignment
+    clip_range: 0.2                 # Standard clipping
+    clip_range_vf: null
+    ent_coef: 0.08                  # HIGH entropy for aggressive exploration (vs 0.02)
+    vf_coef: 0.5
+    max_grad_norm: 0.5
+    network_arch: [256, 256]        # Smaller network for faster learning
+    activation_fn: "relu"
+    normalize_advantage: true
+
+# Training Configuration
+# ----------------------
+training:
+  total_timesteps: 300000           # 300K steps - sufficient for learning active trading
+  n_envs: 8
+  eval_freq: 20000
+  n_eval_episodes: 5
+  checkpoint_freq: 100000
+  log_interval: 10
+  seed: 42
+  device: "auto"
+  tensorboard_log: "logs/tensorboard/exp007_active_trading"
+  model_save_dir: "models/exp007_active_trading"
+  best_model_save_path: "models/exp007_active_trading/best"
+  verbose: 1                        # Show training progress
+
+# Experiment Metadata
+# -------------------
+metadata:
+  created_from: "exp006_17_12_2025"
+  creation_date: "2025-12-19"
+  purpose: "Fix single-trade issue - enable frequent trading with 2-3 day max holding"
+  changes_from_baseline:
+    - "Changed reward_type from 'risk_adjusted' to 'active_trading'"
+    - "Set max_holding_days=2 (strict 2-day holding limit)"
+    - "Set holding_penalty=0.005 (strong penalty for overstaying)"
+    - "Set trade_completion_bonus=0.008 (high reward for trades)"
+    - "Set inactivity_penalty=0.003 with threshold=2 days"
+    - "Removed trade_penalty and drawdown_penalty to encourage trading"
+    - "Lowered gamma from 0.98 to 0.90 for very short-term focus"
+    - "Lowered gae_lambda from 0.95 to 0.85 for faster credit assignment"
+    - "Increased ent_coef from 0.02 to 0.08 for aggressive exploration"
+    - "Increased training timesteps from 2000 to 300000"
+    - "Reduced network to [256, 256] for faster learning"
+    - "Reduced n_steps to 1024 for more frequent updates"
+
+# Success Criteria
+# ----------------
+success_criteria:
+  primary:
+    total_trades: ">=30"           # Must have many trades (was >=10)
+    avg_holding_days: "<=3"        # Average holding period under 3 days
+
+  secondary:
+    total_return: ">=-10%"         # Allow some drawdown in exchange for trading
+    win_rate: ">40%"               # At least 40% win rate
+    max_drawdown: "<35%"           # Allow higher drawdown for trading activity
+
+# Notes
+# -----
+# AGGRESSIVE CONFIGURATION to fix "only 1 trade" problem:
+#
+# 1. reward_type: "active_trading" - Uses ActiveTradingReward class (KEY FIX)
+# 2. max_holding_days: 2 - Penalizes holding beyond 2 days (strict)
+# 3. holding_penalty: 0.005 - STRONG penalty for overstaying positions
+# 4. trade_completion_bonus: 0.008 - HIGH reward for completing trades
+# 5. inactivity_penalty: 0.003 - STRONG penalty for not trading
+# 6. inactivity_threshold: 2 - Triggers penalty after just 2 days
+# 7. gamma: 0.90 - VERY LOW for ultra-short-term focus
+# 8. gae_lambda: 0.85 - Lower for faster credit assignment
+# 9. ent_coef: 0.08 - HIGH entropy for aggressive exploration
+# 10. n_steps: 1024 - Smaller rollouts for more frequent updates
+# 11. total_timesteps: 300K - Proper training (was 2K!)
+#
+# Root cause of "1 trade only" issue:
+# - Original config used risk_adjusted reward with trade_penalty
+# - Only 2000 training steps (insufficient learning)
+# - No mechanism to enforce holding period limits
+# - High gamma (0.98) encouraged buy-and-hold
+
+# Commands:
+# Train:    poetry run python scripts/train.py --config configs/experiments/exp007_active_trading.yaml
+# Backtest: poetry run python scripts/backtest.py --model models/exp007_active_trading_TIMESTAMP --symbol RELIANCE.NS --start 2021-01-01 --end 2025-12-31

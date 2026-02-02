@@ -1,0 +1,143 @@
+# Position Sizing Configuration: Kelly Criterion (Optimal Growth)
+# ================================================================
+# Uses fractional Kelly Criterion for optimal long-term growth.
+# Requires estimation of win rate and payoff ratio from trade history.
+# Most complex but highest potential if parameters estimated well.
+
+position_sizer:
+  strategy: "kelly"
+
+  # Universal parameters
+  min_position: 0.10  # Minimum position size (10%)
+  max_position: 0.20  # Maximum position size (20%)
+
+  # Kelly strategy parameters
+  kelly_fraction: 0.25             # Quarter-Kelly (conservative)
+  kelly_alpha: 0.05                # EMA smoothing (~40 trade half-life)
+  kelly_min_trades: 20             # Minimum trades before trusting estimates
+  kelly_prior_win_rate: 0.50       # Bayesian prior: 50% win rate (neutral)
+  kelly_prior_payoff: 1.5          # Bayesian prior: 1.5:1 payoff ratio
+
+# Usage Example:
+# ---------------
+# from tradebox.risk import PositionSizerConfig, create_position_sizer
+#
+# config = PositionSizerConfig(strategy='kelly', kelly_fraction=0.25)
+# sizer = create_position_sizer(config)
+# # Sizer automatically creates KellyEstimator
+#
+# # After each trade, update estimator
+# sizer.estimator.update(pnl_pct=0.05)  # 5% gain
+# sizer.estimator.update(pnl_pct=-0.02)  # 2% loss
+#
+# # Calculate position (uses accumulated trade history)
+# position = sizer.calculate()
+
+# Formula:
+# --------
+# Full Kelly: f = (p × b - q) / b
+#   where:
+#     p = win rate (probability of winning)
+#     b = payoff ratio (avg_win / avg_loss)
+#     q = 1 - p (probability of losing)
+#
+# Fractional Kelly: position = kelly_fraction × f
+#   - Quarter-Kelly (0.25): Very conservative
+#   - Half-Kelly (0.50): Moderate
+#   - Full Kelly (1.00): Aggressive (not recommended)
+
+# Estimation (EMA with Bayesian Prior):
+# ---------------------------------------
+# If trade_count < kelly_min_trades:
+#   # Blend prior and observed data
+#   weight = trade_count / kelly_min_trades
+#   p = weight × ema_win_rate + (1 - weight) × prior_win_rate
+#   b = weight × observed_payoff + (1 - weight) × prior_payoff
+# Else:
+#   # Use observed statistics
+#   p = ema_win_rate
+#   b = ema_avg_win / ema_avg_loss
+
+# Example Calculation:
+# --------------------
+# After 30 trades (> min_trades = 20):
+#   EMA win rate = 0.55 (55%)
+#   EMA avg win = 0.05 (5%)
+#   EMA avg loss = 0.03 (3%)
+#   Payoff ratio b = 0.05 / 0.03 = 1.67
+#
+# Full Kelly: f = (0.55 × 1.67 - 0.45) / 1.67 = 0.28
+# Quarter-Kelly: position = 0.25 × 0.28 = 0.07 → clamped to 0.10 (min_position)
+
+# Hyperparameter Sensitivity:
+# ----------------------------
+# kelly_fraction: [0.10, 0.25, 0.50]
+#   - 0.10: Very conservative (1/10 Kelly)
+#   - 0.25: Balanced, recommended (quarter-Kelly)
+#   - 0.50: Moderate risk tolerance (half-Kelly)
+#   - 1.00: Full Kelly (NOT recommended - too aggressive)
+#
+# kelly_alpha: [0.03, 0.05, 0.10]
+#   - 0.03: Slower updates (~67 trade half-life)
+#   - 0.05: Balanced (~40 trade half-life) [RECOMMENDED]
+#   - 0.10: Faster updates (~20 trade half-life)
+#
+# kelly_min_trades: [15, 20, 30]
+#   - 15: Earlier trust in estimates (less conservative)
+#   - 20: Balanced [RECOMMENDED]
+#   - 30: More conservative, longer bootstrap period
+#
+# kelly_prior_win_rate: [0.45, 0.50, 0.55]
+#   - 0.45: Pessimistic prior
+#   - 0.50: Neutral prior [RECOMMENDED]
+#   - 0.55: Optimistic prior
+#
+# kelly_prior_payoff: [1.2, 1.5, 2.0]
+#   - 1.2: Conservative (small wins relative to losses)
+#   - 1.5: Balanced [RECOMMENDED]
+#   - 2.0: Optimistic (large wins relative to losses)
+
+# Expected Behavior:
+# ------------------
+# - Positive edge (win rate × payoff > 1) → positive position
+# - Negative edge → 0% position (no trade)
+# - Adapts to realized win rate and payoff ratio
+# - Early trades use priors (Bayesian)
+# - Later trades use observed data (EMA)
+
+# Pros:
+# -----
+# - Optimal long-term growth (mathematically proven)
+# - Adapts to changing edge
+# - Robust with fractional Kelly
+
+# Cons:
+# -----
+# - Requires accurate estimation (win rate, payoff)
+# - Sensitive to parameters (fractional Kelly helps)
+# - Complex to implement and debug
+
+# Use Case:
+# ---------
+# - Consistent win/loss patterns
+# - Sufficient trade history (>20 trades)
+# - Want optimal growth with controlled risk
+
+# Common Pitfalls:
+# ----------------
+# 1. Over-leverage: Use fractional Kelly (0.25-0.5), not full Kelly
+# 2. Parameter estimation errors: Use Bayesian priors and min_trades threshold
+# 3. Negative Kelly: Returns 0 position (correct behavior)
+# 4. Insufficient history: Relies on priors (Bayesian blending)
+
+# Notes:
+# ------
+# Kelly Criterion was developed by John Kelly Jr. at Bell Labs (1956)
+# for optimal betting size in favorable games. It maximizes the
+# expected logarithmic growth rate of capital.
+#
+# Empirical research shows fractional Kelly (especially quarter-Kelly)
+# outperforms full Kelly in practice due to estimation errors and
+# non-stationary environments.
+#
+# Reference: "Fortune's Formula" by William Poundstone (2005)

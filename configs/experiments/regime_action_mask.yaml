@@ -1,0 +1,298 @@
+experiment:
+  name: exp009_regime_action_mask
+  description: "Regime detection + action masking for improved win rate and reduced over-trading"
+  version: "1"
+  baseline: "exp008_regime_detection"
+
+# Data Configuration
+# ------------------
+# Same stocks and splits as baseline
+data:
+  symbols:
+    - "^NSEI"
+  start_date: "2001-01-01"
+  end_date: "2021-12-31"
+  # Fixed temporal splits (no random shuffling):
+  # - Train: 2010-2018 (9 years, ~70%)
+  # - Validation: 2019-2021 (3 years, ~15%)
+  # - Test: 2022-2024 (3 years, ~15%)
+
+# Feature Configuration
+# ---------------------
+# Same as exp008 (regime detection enabled)
+features:
+  version: "v2"  # Techno-fundamental pipeline with regime detection
+
+  technical:
+    # Trend indicators
+    sma_periods: [20, 50, 200]
+    ema_periods: [9, 21]
+
+    # Momentum indicators
+    rsi_period: 14
+    stochastic_period: 14
+    roc_period: 10
+
+    # Volatility indicators
+    atr_period: 14
+    bollinger_period: 20
+    bollinger_std: 2
+    rolling_std_period: 20
+
+    # Volume indicators
+    volume_ma_period: 20
+    obv: true
+
+    # Directional indicators for regime detection
+    adx_enabled: true
+    adx_period: 14
+
+  # Regime detection configuration
+  regime:
+    regime_type: "trend"              # Trend-based regime using ADX
+    trending_threshold: 25.0          # ADX > 25 = trending market
+    ranging_threshold: 20.0           # ADX < 20 = ranging market
+    use_directional_bias: true        # Use +DI/-DI for trend direction
+    di_diff_threshold: 5.0            # Min DI difference for bias
+    encode_as_onehot: false           # Single value encoding (0, 1, 2)
+    smooth_regime: false              # Disable smoothing initially
+    min_regime_duration: 5            # Min bars for regime confirmation
+
+  fundamental:
+    enabled: true
+    use_mock_data: true  # Set to false for real yfinance data
+    announcement_delay_days: 45  # Point-in-time correctness (T+45 days)
+
+    # Feature groups
+    valuation_enabled: true
+    profitability_enabled: true
+    leverage_enabled: true
+    growth_enabled: true
+
+    # Individual features
+    pe_ratio: true
+    pb_ratio: true
+    ps_ratio: true
+    roe: true
+    roa: true
+    profit_margin: true
+    operating_margin: true
+    gross_margin: true
+    debt_to_equity: true
+    current_ratio: true
+    interest_coverage: true
+    revenue_growth: true
+    eps_growth: true
+    book_value_growth: true
+    asset_growth: true
+
+# Environment Configuration
+# --------------------------
+# Enhanced with action masking
+env:
+  initial_capital: 100000.0
+  lookback_window: 35
+  max_episode_steps: 500
+  action_space: "Discrete(3)"  # {Hold, Buy, Sell}
+
+  # Cost configuration - realistic Zerodha-style
+  cost_config:
+    slippage_pct: 0.001  # 0.1% slippage
+
+  # Reward configuration - same as baseline
+  reward_config:
+    reward_type: "risk_adjusted"
+    risk_penalty: 0.0001
+    trade_penalty: 0.0005
+
+  # NEW: Action masking configuration
+  action_mask_config:
+    enabled: true                     # Enable regime-conditioned masking
+    regime_column: "regime_state"     # Column for regime state (0, 1, 2)
+    trend_bias_column: "trend_bias"   # Column for trend bias (-1, 0, 1)
+    ranging_state: 0                  # Regime state value for ranging
+    transition_state: 1               # Regime state value for transition
+    trending_state: 2                 # Regime state value for trending
+    allow_hold_always: true           # Hold always allowed
+
+# Agent Configuration
+# -------------------
+# Same PPO hyperparameters as baseline
+agent:
+  algorithm: "PPO"
+  ppo:
+    use_cnn_extractor: true
+    extractor_type: "trading"  # TradingCNNExtractor
+
+    # CNN architecture
+    price_embed_dim: 128
+    ind_embed_dim: 64
+    port_embed_dim: 32
+    fund_embed_dim: 16
+
+    # CNN options
+    use_attention: true
+    cnn_dropout: 0.1
+
+    # PPO hyperparameters
+    learning_rate: 0.0005
+    n_steps: 512
+    batch_size: 2048
+    n_epochs: 10
+    gamma: 0.98
+    gae_lambda: 0.95
+    clip_range: 0.25
+    ent_coef: 0.001
+    vf_coef: 0.5
+    max_grad_norm: 0.5
+    network_arch: [512, 512]
+    activation_fn: "relu"
+    normalize_advantage: true
+
+# Training Configuration
+# ----------------------
+# Same training setup as baseline
+training:
+  total_timesteps: 2000000      # 2M steps
+  n_envs: 16                     # 16 parallel environments
+  eval_freq: 20000              # Evaluate every 20K steps
+  n_eval_episodes: 5            # 5 episodes per evaluation
+  checkpoint_freq: 100000       # Save checkpoint every 100K steps
+  log_interval: 10              # Log every 10 steps
+  seed: 123                     # Same seed for reproducibility
+  device: "cuda"
+  tensorboard_log: "logs/tensorboard/exp009_action_mask"
+  model_save_dir: "models/exp009_action_mask"
+  best_model_save_path: "models/exp009_action_mask/best"
+  verbose: 0
+
+# Experiment Metadata
+# -------------------
+metadata:
+  created_from: "exp008_regime_detection"
+  creation_date: "2025-12-30"
+  purpose: "Add regime-conditioned action masking to enforce domain constraints"
+  baseline_performance:
+    total_return: "TBD (from exp008)"
+    win_rate: "TBD (from exp008)"
+    sharpe_ratio: "TBD (from exp008)"
+    max_drawdown: "TBD (from exp008)"
+
+  new_features:
+    - "Regime-conditioned action masking"
+    - "Prevents counter-trend trades in trending markets"
+    - "Restricts trading in ranging markets (Hold only)"
+    - "Allows all actions in transition regimes"
+
+  mask_logic:
+    ranging:
+      regime_state: 0
+      trend_bias: "any"
+      allowed_actions: ["Hold"]
+      rationale: "Low expectancy trades in ranging markets"
+
+    transition:
+      regime_state: 1
+      trend_bias: "any"
+      allowed_actions: ["Hold", "Buy", "Sell"]
+      rationale: "Market in flux, allow flexibility"
+
+    trending_uptrend:
+      regime_state: 2
+      trend_bias: 1
+      allowed_actions: ["Hold", "Buy"]
+      rationale: "Only trade with uptrend, no short positions"
+
+    trending_downtrend:
+      regime_state: 2
+      trend_bias: -1
+      allowed_actions: ["Hold", "Sell"]
+      rationale: "Only exit positions in downtrend"
+
+    trending_neutral:
+      regime_state: 2
+      trend_bias: 0
+      allowed_actions: ["Hold"]
+      rationale: "Trend strength high but direction unclear"
+
+# Success Criteria
+# ----------------
+# Targets for this experiment
+success_criteria:
+  primary:
+    win_rate: ">=58%"               # PRIMARY TARGET: +8-15% improvement
+    total_return: ">=20%"           # Maintain baseline performance
+
+  secondary:
+    sharpe_ratio: ">0.5"            # Improved risk-adjusted returns
+    max_drawdown: "<12%"            # Reduced drawdown vs baseline
+    profit_factor: ">1.8"           # Better profit per unit risk
+    trade_frequency: "<baseline"   # Reduced over-trading
+
+  regime_specific:
+    trending_win_rate: ">=65%"      # High win rate in trends
+    ranging_win_rate: ">=60%"       # Improved by avoiding bad trades
+    transition_win_rate: ">=50%"    # Maintain flexibility
+
+  behavior_validation:
+    ranging_trades_pct: "<10%"      # Minimal trading in ranging markets
+    trending_trades_pct: ">60%"     # Most trades in trending markets
+    counter_trend_trades: "0%"      # Zero counter-trend trades (enforced by mask)
+
+# Expected Impact
+# ---------------
+expected_impact:
+  win_rate: "+8-15%"                # From masking bad trades
+  drawdown: "-2-5%"                 # From avoiding ranging losses
+  trade_frequency: "-20-30%"        # Fewer total trades
+  sharpe_ratio: "+0.3-0.5"          # Better risk-adjusted returns
+
+  mechanism:
+    - "Mask prevents statistically poor actions"
+    - "Enforces market structure at policy level"
+    - "No reward shaping needed"
+    - "Stable policy learning"
+
+# Notes
+# -----
+# 1. This experiment builds on exp008 by adding action masking
+# 2. Action mask is generated dynamically from regime_state + trend_bias
+# 3. Masked actions receive -inf logits (handled by policy network)
+# 4. Backward compatible: Set action_mask_config.enabled: false to disable
+# 5. Configuration is toggleable and fully optional
+# 6. Default behavior (mask disabled) matches baseline exactly
+# 7. Action mask passed via info dict (Gymnasium standard)
+# 8. Integration tested with comprehensive unit tests
+
+# Implementation Details
+# ----------------------
+implementation:
+  modules:
+    - "tradebox.env.action_mask.ActionMaskConfig"
+    - "tradebox.env.action_mask.RegimeActionMask"
+
+  integration:
+    - "EnvConfig.action_mask_config added"
+    - "TradingEnv._get_info() returns action_mask in info dict"
+    - "TradingEnv._get_regime_info() extracts regime/bias from features"
+
+  testing:
+    - "31 unit tests (100% coverage on action_mask.py)"
+    - "Backward compatibility verified"
+    - "All tests pass"
+
+# Usage
+# -----
+# Train with action masking:
+#   python scripts/train.py --config configs/experiments/exp009_regime_action_mask.yaml
+#
+# Train without action masking (baseline mode):
+#   # Edit config: set env.action_mask_config.enabled: false
+#   python scripts/train.py --config configs/experiments/exp009_regime_action_mask.yaml
+#
+# Backtest:
+#   python scripts/backtest.py --model models/exp009_action_mask/best \
+#       --config configs/experiments/exp009_regime_action_mask.yaml
+#
+# Analyze masking statistics:
+#   python scripts/analyze_action_mask.py --config configs/experiments/exp009_regime_action_mask.yaml

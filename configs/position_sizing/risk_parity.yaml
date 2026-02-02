@@ -1,0 +1,70 @@
+# Position Sizing Configuration: Risk Parity (Volatility Targeting)
+# ===================================================================
+# Scales position to achieve target portfolio volatility.
+# For single-stock environment (Phase 1-3).
+# Full risk parity (equal risk contribution) deferred to Phase 4 (multi-asset).
+
+position_sizer:
+  strategy: "risk_parity"
+
+  # Universal parameters
+  min_position: 0.10  # Minimum position size (10%)
+  max_position: 0.20  # Maximum position size (20%)
+
+  # Risk Parity strategy parameters
+  rp_target_volatility: 0.12    # Target 12% annualized portfolio volatility
+  rp_volatility_window: 60      # 60-day rolling window for volatility calculation
+
+# Usage Example:
+# ---------------
+# from tradebox.risk import PositionSizerConfig, create_position_sizer
+#
+# config = PositionSizerConfig(strategy='risk_parity', rp_target_volatility=0.12)
+# sizer = create_position_sizer(config)
+# position = sizer.calculate(
+#     volatility=0.20  # Annualized stock volatility (20%)
+# )
+
+# Formula:
+# --------
+# position_fraction = rp_target_volatility / asset_volatility
+# # Clamped to [min_position, max_position]
+
+# Example Calculation:
+# --------------------
+# Stock volatility: 20% annualized
+# Target portfolio volatility: 12%
+# Position: 12% / 20% = 0.60 → clamped to 0.20 (20%)
+#
+# Stock volatility: 10% annualized (low vol)
+# Position: 12% / 10% = 1.20 → clamped to 0.20 (20%)
+#
+# Stock volatility: 30% annualized (high vol)
+# Position: 12% / 30% = 0.40 → clamped to 0.20 (20%)
+
+# Hyperparameter Sensitivity:
+# ----------------------------
+# rp_target_volatility: [0.10, 0.12, 0.15]
+#   - 0.10: Very conservative, low target volatility
+#   - 0.12: Balanced (recommended)
+#   - 0.15: Moderate risk tolerance
+#
+# rp_volatility_window: [30, 60, 90]
+#   - 30: More responsive to recent volatility
+#   - 60: Balanced (recommended, ~3 months)
+#   - 90: Smoother, less sensitive to spikes
+
+# Expected Behavior:
+# ------------------
+# - High volatility stocks → smaller positions
+# - Low volatility stocks → larger positions
+# - Portfolio volatility stabilizes around target
+# - Pros: Stable portfolio volatility, simple formula
+# - Cons: Single-asset limited (deferred to Phase 4), ignores expected returns
+# - Use case: Volatility targeting, conservative approach
+
+# Notes:
+# ------
+# This is a simplified risk parity for single-stock environments.
+# Full risk parity (equal risk contribution across N assets) will be
+# implemented in Phase 4 (multi-asset portfolio management).

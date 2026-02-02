@@ -1,0 +1,234 @@
+experiment:
+  name: exp_31_12_2025
+  description: "Baseline + ADX-based trend regime detection for improved win rate"
+  version: "1"
+  baseline_cycle: "cycle_2"
+  original_model: "exp_31_12_2025"
+
+# Data Configuration
+# ------------------
+# Same stocks and splits as original experiments
+data:
+  symbols:
+    - "^NSEI"
+  start_date: "2001-01-01"
+  end_date: "2024-12-31"  # Extended to include test period (2022-2024)
+  # Fixed temporal splits (no random shuffling):
+  # - Train: 2010-2018 (9 years, ~70%)
+  # - Validation: 2019-2021 (3 years, ~15%)
+  # - Test: 2022-2024 (3 years, ~15%)
+
+# Feature Configuration
+# ---------------------
+# Same technical and fundamental features
+features:
+  version: "v2"  # Techno-fundamental pipeline
+
+  technical:
+    # Trend indicators
+    sma_periods: [20, 50, 200]
+    ema_periods: [9, 21]
+
+    # Momentum indicators
+    rsi_period: 14
+    stochastic_period: 14
+    roc_period: 10
+
+    # Volatility indicators
+    atr_period: 14
+    bollinger_period: 20
+    bollinger_std: 2
+    rolling_std_period: 20
+
+    # Volume indicators
+    volume_ma_period: 20
+    obv: true
+
+    # NEW: Directional indicators for regime detection
+    adx_enabled: true
+    adx_period: 14
+
+  # NEW: Regime detection configuration
+  regime:
+    regime_type: "trend"              # Trend-based regime using ADX
+    trending_threshold: 20.0          # ADX > 25 = trending market
+    ranging_threshold: 15.0           # ADX < 20 = ranging market
+    use_directional_bias: true        # Use +DI/-DI for trend direction
+    di_diff_threshold: 5.0            # Min DI difference for bias
+    encode_as_onehot: false           # Single value encoding (0, 1, 2)
+    smooth_regime: false              # Disable smoothing initially
+    min_regime_duration: 3            # Min bars for regime confirmation
+
+  fundamental:
+    enabled: true
+    use_mock_data: true  # Set to false for real yfinance data
+    announcement_delay_days: 45  # Point-in-time correctness (T+45 days)
+
+    # Feature groups
+    valuation_enabled: true
+    profitability_enabled: true
+    leverage_enabled: true
+    growth_enabled: true
+
+    # Individual features
+    pe_ratio: true
+    pb_ratio: true
+    ps_ratio: true
+    roe: true
+    roa: true
+    profit_margin: true
+    operating_margin: true
+    gross_margin: true
+    debt_to_equity: true
+    current_ratio: true
+    interest_coverage: true
+    revenue_growth: true
+    eps_growth: true
+    book_value_growth: true
+    asset_growth: true
+
+# Environment Configuration
+# --------------------------
+# Cycle 2 configuration: Simple returns reward for pure profit maximization
+env:
+  initial_capital: 100000.0
+  lookback_window: 60
+  max_episode_steps: 300
+  action_space: "Discrete(3)"  # {Hold, Buy, Sell}
+
+  # Cost configuration - realistic Zerodha-style
+  cost_config:
+    slippage_pct: 0.001  # 0.1% slippage
+
+  # CYCLE 2 REWARD: Simple returns for aggressive profit seeking
+  reward_config:
+    reward_type: "risk_adjusted" #"risk_adjusted"
+
+    # Now with bug fixed, testing if simple_returns achieves same 21% return
+    trade_penalty: 0.00005        # Reduced by 2x to encourage active trading
+    # Strategy: Maximize returns without heavy risk penalties
+
+  # NEW: Action masking configuration (to fix "one trade" problem)
+  action_mask_config:
+    enabled: true                     # Enable regime-conditioned masking
+    regime_column: "regime_state"     # Column for regime state (0, 1, 2)
+    trend_bias_column: "trend_bias"   # Column for trend bias (-1, 0, 1)
+    ranging_state: 0                  # Regime state value for ranging
+    transition_state: 1               # Regime state value for transition
+    trending_state: 2                 # Regime state value for trending
+    allow_hold_always: true           # Hold always allowed
+
+# Agent Configuration
+# -------------------
+# Cycle 2 PPO hyperparameters - proven to achieve 21.21% return
+agent:
+  algorithm: "PPO"
+  ppo:
+    use_cnn_extractor: true
+    extractor_type: "trading"  # TradingCNNExtractor
+
+    # CNN architecture
+    price_embed_dim: 128
+    ind_embed_dim: 64
+    port_embed_dim: 32
+    fund_embed_dim: 16
+
+    # CNN options
+    use_attention: true
+    cnn_dropout: 0.1
+
+    # Policy network
+    # network_arch: [256, 256]
+    
+    learning_rate: 0.0005       # Higher LR for faster learning
+    n_steps: 512                 # Smaller n_steps for more frequent updates
+    batch_size: 2048              # Standard batch size
+    n_epochs: 10
+    gamma: 0.98                 # Slightly lower gamma for shorter-term focus
+    gae_lambda: 0.95
+    clip_range: 0.2            # Higher clip for more aggressive updates
+    clip_range_vf: null
+    ent_coef: 0.01              # Higher entropy for exploration
+    vf_coef: 0.5
+    max_grad_norm: 0.5
+    network_arch: [512, 512]    # Balanced square architecture
+    activation_fn: "relu"
+    # activation_fn: "tanh"
+    normalize_advantage: true
+
+# Training Configuration
+# ----------------------
+# Cycle 2 training setup - sweet spot before overfitting
+training:
+  total_timesteps: 2500000
+  n_envs: 16                     # 8 parallel environments
+  eval_freq: 20000              # Evaluate every 20K steps
+  n_eval_episodes: 5            # 5 episodes per evaluation
+  checkpoint_freq: 100000       # Save checkpoint every 100K steps
+  log_interval: 10              # Log every 10 steps
+  seed: 123                     # Cycle 2 seed for reproducibility
+  device: "cuda"
+  tensorboard_log: "logs/tensorboard/exp_31_12_2025"
+  model_save_dir: "models/exp_31_12_2025"
+  best_model_save_path: "models/exp_31_12_2025/best"
+  verbose: 0
+
+# Experiment Metadata
+# -------------------
+metadata:
+  created_from: "exp_cycle2"
+  creation_date: "2025-12-30"
+  purpose: "Add regime detection to improve win rate and avoid 'average bad strategy'"
+  regime_features_added:
+    - "ADX (trend strength)"
+    - "Plus_DI (positive directional indicator)"
+    - "Minus_DI (negative directional indicator)"
+    - "regime_state (0=range, 1=transition, 2=trending)"
+    - "regime_strength (normalized ADX)"
+    - "trend_bias (-1=down, 0=neutral, 1=up)"
+    - "regime_persistence (bars in current regime)"
+  original_performance:
+    total_return: "21.21%"
+    win_rate: "50.0%"
+    sharpe_ratio: "-0.458"
+    max_drawdown: "-12.18%"
+    training_sharpe: "-92.11"  # Was buggy (used risk_adjusted instead)
+  expected_performance:
+    total_return: "~20-25%"  # Should match or improve
+    win_rate: "50-55%"       # May improve with correct reward
+    training_sharpe: "positive"  # With simple_returns, should be positive
+
+# Success Criteria
+# ----------------
+# Targets for this experiment
+success_criteria:
+  primary:
+    total_return: ">=15%"      # Must maintain Cycle 2 performance
+    win_rate: ">70%"           # Ultimate target (may need further optimization)
+
+  secondary:
+    sharpe_ratio: ">0.0"       # Should be positive with correct reward
+    max_drawdown: "<20%"       # Keep risk controlled
+    profit_factor: ">1.5"      # Good profit per unit risk
+
+  regime_specific:
+    trending_win_rate: ">=60%"      # Higher win rate in trending markets
+    ranging_win_rate: ">=50%"       # Maintain performance in ranging markets
+    regime_adaptation: "Agent learns to trade more in trending, less in ranging"
+
+  validation:
+    training_sharpe: ">0.0"    # Should be positive unlike buggy Cycle 2
+    backtest_alignment: "training and backtest should correlate positively"
+
+# Notes
+# -----
+# 1. This experiment adds ADX-based trend regime detection to baseline (exp)
+# 2. Observation space expanded: 27 features → 34 features (+7 regime features)
+# 3. Key hypothesis: Explicit regime context helps PPO avoid "average bad strategy"
+# 4. Agent receives market state context (trending vs. ranging) to adapt behavior
+# 5. Expected behavior: Trade more aggressively in trends, reduce activity in ranges
+# 6. Success measured primarily by win rate improvement (50% → 55%+)
+# 7. Backward compatible: Set adx_enabled: false to disable regime features
+# 8. Validation available via scripts/validate_regime.py
+
+  # python scripts/train.py --config configs/experiments/exp_31_12_2025.yaml

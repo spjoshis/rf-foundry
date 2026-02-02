@@ -1,0 +1,41 @@
+# KiteBroker Configuration
+#
+# API credentials are loaded from environment variables for security:
+#   export KITE_API_KEY="your_api_key"
+#   export KITE_API_SECRET="your_api_secret"
+#   export KITE_ACCESS_TOKEN="your_access_token"  # Optional, generated via login flow
+#
+# NEVER commit API keys to version control!
+
+kite_broker:
+  # Reconciliation Settings
+  reconciliation:
+    enabled: true
+    interval_seconds: 30  # Sync with Kite every 30 seconds
+
+  # Rate Limiting (Conservative defaults below Kite API limits)
+  # Kite API limits: 10 req/sec, 200 req/min, 3000 req/day
+  rate_limits:
+    max_orders_per_second: 8   # Conservative (limit: 10)
+    max_orders_per_minute: 180  # Conservative (limit: 200)
+    max_orders_per_day: 2500    # Conservative (limit: 3000)
+
+  # Retry Configuration (Exponential backoff with jitter)
+  retry:
+    max_retries: 3
+    initial_delay_seconds: 1.0
+    max_delay_seconds: 30.0
+    backoff_multiplier: 2.0
+    jitter: true
+
+  # Cache Settings
+  cache:
+    ttl_seconds: 5          # General cache TTL
+    positions_ttl_seconds: 10  # Positions cache TTL
+
+# Security Best Practices:
+# 1. Use environment variables for credentials
+# 2. Enable IP whitelisting in Kite Connect console
+# 3. Rotate credentials regularly
+# 4. Never log access tokens
+# 5. Use secrets manager in production (AWS Secrets Manager, HashiCorp Vault)

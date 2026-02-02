@@ -1,0 +1,33 @@
+# Position Sizing Configuration: Fixed (Baseline)
+# ================================================
+# Always allocates the same fraction of portfolio, regardless of market conditions.
+# Useful as a baseline for comparing adaptive strategies.
+
+position_sizer:
+  strategy: "fixed"
+
+  # Universal parameters (apply to all strategies)
+  min_position: 0.10  # Minimum position size (10%)
+  max_position: 0.20  # Maximum position size (20%)
+
+  # Fixed strategy parameters
+  fixed_fraction: 0.20  # Always use 20% of portfolio
+
+# Usage Example:
+# ---------------
+# from tradebox.risk import PositionSizerConfig, create_position_sizer
+#
+# config = PositionSizerConfig(
+#     strategy='fixed',
+#     fixed_fraction=0.20,
+#     max_position=0.20
+# )
+# sizer = create_position_sizer(config)
+# position = sizer.calculate()  # Returns 0.20 (20%)
+
+# Expected Behavior:
+# ------------------
+# - Position size: Always 0.20 (20%)
+# - Pros: Simple, reproducible, no estimation needed
+# - Cons: Ignores market conditions, not adaptive
+# - Use case: Baseline for comparison, simple strategies

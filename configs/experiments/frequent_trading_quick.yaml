@@ -1,0 +1,121 @@
+experiment:
+  name: exp007_frequent_trading_quick
+  description: "Quick Test: Frequent Trading Optimization with reduced timesteps for validation"
+  version: "1"
+  baseline: "exp006_17_12_2025"
+  objective: "Quick validation of active trading reward function"
+
+# Data Configuration
+data:
+  symbols:
+    - "^NSEI"
+  start_date: "2001-01-01"
+  end_date: "2021-12-31"
+
+# Feature Configuration
+features:
+  version: "v2"
+  technical:
+    sma_periods: [20, 50, 200]
+    ema_periods: [9, 21]
+    rsi_period: 14
+    stochastic_period: 14
+    roc_period: 10
+    atr_period: 14
+    bollinger_period: 20
+    bollinger_std: 2
+    rolling_std_period: 20
+    volume_ma_period: 20
+    obv: true
+
+  fundamental:
+    enabled: true
+    use_mock_data: true
+    announcement_delay_days: 45
+    valuation_enabled: true
+    profitability_enabled: true
+    leverage_enabled: true
+    growth_enabled: true
+    pe_ratio: true
+    pb_ratio: true
+    ps_ratio: true
+    roe: true
+    roa: true
+    profit_margin: true
+    operating_margin: true
+    gross_margin: true
+    debt_to_equity: true
+    current_ratio: true
+    interest_coverage: true
+    revenue_growth: true
+    eps_growth: true
+    book_value_growth: true
+    asset_growth: true
+
+# Environment Configuration - OPTIMIZED for frequent trading
+env:
+  initial_capital: 100000.0
+  lookback_window: 60
+  max_episode_steps: 500
+  action_space: "Discrete(3)"
+
+  cost_config:
+    slippage_pct: 0.001
+
+  # ACTIVE TRADING REWARD
+  reward_config:
+    reward_type: "active_trading"
+    max_holding_days: 3
+    holding_penalty: 0.002
+    trade_completion_bonus: 0.003
+    inactivity_penalty: 0.001
+    inactivity_threshold: 5
+    trade_penalty: 0.0
+    drawdown_penalty: 0.0
+    risk_penalty: 0.0
+
+# Agent Configuration - OPTIMIZED for short-term trading
+agent:
+  algorithm: "PPO"
+  ppo:
+    use_cnn_extractor: true
+    extractor_type: "trading"
+    price_embed_dim: 128
+    ind_embed_dim: 64
+    port_embed_dim: 32
+    fund_embed_dim: 16
+    use_attention: true
+    cnn_dropout: 0.1
+    learning_rate: 0.0003
+    n_steps: 2048
+    batch_size: 64
+    n_epochs: 10
+    gamma: 0.90           # Lower gamma for shorter-term focus
+    gae_lambda: 0.92
+    clip_range: 0.2
+    clip_range_vf: null
+    ent_coef: 0.05        # Higher entropy for exploration
+    vf_coef: 0.5
+    max_grad_norm: 0.5
+    network_arch: [512, 512]
+    activation_fn: "relu"
+    normalize_advantage: true
+
+# Training Configuration - QUICK TEST
+training:
+  total_timesteps: 100000     # Quick test: 100K timesteps (~5-10 min)
+  n_envs: 8
+  eval_freq: 20000
+  n_eval_episodes: 5
+  checkpoint_freq: 50000
+  log_interval: 10
+  seed: 456
+  device: "auto"
+  tensorboard_log: "logs/tensorboard/exp007_frequent_trading_quick"
+  model_save_dir: "models/exp007_frequent_trading_quick"
+  best_model_save_path: "models/exp007_frequent_trading_quick/best"
+  verbose: 1
+
+metadata:
+  purpose: "Quick validation of frequent trading optimization"
+  note: "Use exp007_frequent_trading.yaml for full training (750K timesteps)"

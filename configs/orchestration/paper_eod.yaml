@@ -1,0 +1,38 @@
+# Paper Trading EOD Configuration
+# TradeBox-RL Trading Orchestrator
+
+experiment:
+  name: paper_eod_trading
+  description: Paper trading with end-of-day strategy
+
+orchestration:
+  mode: paper  # paper | live
+  schedule: "15:30"  # 3:30 PM IST (market close time)
+  timezone: "Asia/Kolkata"
+  symbols:
+    - "^NSEI"          # Nifty 50 Index
+    - "RELIANCE.NS"    # Reliance Industries
+    - "TCS.NS"         # Tata Consultancy Services
+    - "INFY.NS"        # Infosys
+    - "HDFCBANK.NS"    # HDFC Bank
+  model_path: "models/exp005_21_per_return_intra_20251215_121301.zip"  # Latest intraday model
+
+execution:
+  broker: paper
+  initial_capital: 100000  # ₹1 lakh
+
+risk:
+  max_position_size_pct: 0.20        # Max 20% per trade
+  max_stock_allocation_pct: 0.15     # Max 15% per stock
+  max_daily_loss_pct: 0.02           # Halt if lose 2% in a day
+  max_sector_concentration_pct: 0.30  # Max 30% in one sector
+  min_daily_volume: 100000           # Min 100K shares daily volume
+  max_leverage: 1.0                  # No leverage
+
+monitoring:
+  metrics_db: "data/metrics.db"
+  alert_email: null  # Set your email for alerts
+
+logging:
+  level: INFO  # DEBUG | INFO | WARNING | ERROR
+  file: "logs/orchestrator_paper_eod.log"

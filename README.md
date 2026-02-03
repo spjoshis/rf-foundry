@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-A production-ready **reinforcement learning-based trading system** for Indian equity markets. RL-Foundry combines deep learning, technical analysis, and intelligent regime detection to create adaptive trading strategies for both end-of-day (EOD) swing trading and high-frequency intraday trading (5-minute bars).
+A production-ready **framework to train/finetune reinforcement learning models**. RL-Foundry combines deep learning, technical analysis, and intelligent regime detection to create adaptive trading strategies for both end-of-day (EOD) swing trading and high-frequency intraday trading (5-minute bars).
 
 ## Table of Contents
 
